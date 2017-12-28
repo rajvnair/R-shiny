@@ -1,0 +1,34 @@
+
+library(shiny)
+library(rpart)
+library(rpart.plot)
+shinyUI(fluidPage
+        (
+
+headerPanel("Employee Attrition"),
+
+
+	sidebarPanel(
+	p("Fill in the details"),
+	
+			
+	    numericInput("a","Age at the time of joining:",20,min=1,max=100),
+			numericInput("b","Years at episource:",0,min=0,step=0.1),
+			numericInput("c","Salary:",150000,min=120000,max=1000000),
+	    radioButtons("d",label=h3("Gender:"),choices=list("Male"="Male","Female"="Female")),
+	    radioButtons("e",label=h3("Marital status:"),choices=list("Married"="Married","Single"="Single")),
+		  radioButtons("f",label=h3("Fresher/Lateral?:"),choices=list("Fresher"="Fresher","Lateral"="Lateral")),
+			radioButtons("g",label=h3("Long distance benefit:"),choices=list("Yes"="1","No"="0")),
+			selectInput("h",label=h3("Designation:"),list("Executive Coder - CRP"="Executive Coder - CRP",
+					"Coding Analyst - CRP"="Coding Analyst - CRP","Medical Coder - CRP"="Medical Coder - CRP",
+					"Trainee - CRP"="Trainee - CRP")),
+			selectInput("i",label=h3("Qualification:"),list("Diploma"="Diploma","Graduate"="Graduate","Post Graduate"="Post Graduate")),
+			radioButtons("j",label=h3("No of supervisors:"),choices=list("less than 2"="0","2 or more"="1"))),
+      
+
+	
+	mainPanel(
+			h3("The prediction is:"),
+			h4(textOutput("prob")))))
+
+
