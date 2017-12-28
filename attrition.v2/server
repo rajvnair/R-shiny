@@ -1,0 +1,152 @@
+
+library(randomForest)
+set.seed(25)
+train=read.csv("C:\\Users\\INTN008\\Desktop\\attrition new\\train.csv",header=T,sep=",")
+str(train)
+str(test)
+train$increment.1=((train$Salary/train$JoinCTC)^(1/train$Epiexp))-1
+train$increment.1[which(!is.finite(train$increment.1))] = 0
+train$weekly.grp=as.factor(ifelse(train$weeklyawards==0,"0",ifelse(train$weeklyawards>10,"1","2")))
+train$Incentive.grp=as.factor(ifelse(train$Incentive==0,"0",
+                           ifelse(train$Incentive>10,"1",
+                                  ifelse(train$Incentive>5,"2","3"))))
+train$Gender=as.factor(ifelse(train$Gender=="Male",1,0))
+train$Marital.Status=as.factor(ifelse(train$Marital.Status=="Single",1,0))
+train$Exp.category=as.factor(ifelse(train$Exp.category=="Fresher",1,0))
+train$Certified=as.factor(ifelse(train$Certified=="Yes",1,0))
+train$Designation=as.factor(ifelse(train$Designation=="Trainee - CRP",0,
+                                   ifelse(train$Designation=="Medical Coder - CRP",1,2)))
+train$Qualification.level=as.factor(ifelse(train$Qualification.level=="Diploma",0,
+                                           ifelse(train$Qualification.level=="Graduate",1,2)))
+train$Qualification.type=as.factor(ifelse(train$Qualification.type=="Clinical",0,
+                                          ifelse(train$Qualification.type=="Life Science",1,
+                                                 ifelse(train$Qualification.type=="Non Lifescience",2,
+                                                        ifelse(train$Qualification.type=="Professional",3,4)))))
+train$weekly.grp=factor(train$weekly.grp)
+train$Incentive.grp=factor(train$Incentive.grp)
+
+
+x=Status~age.joining+Gender+Epiexp+Prevexp+Marital.Status+Exp.category+
+  Qualification.type+increment.1+weekly.grp+Incentive.grp+Certified+
+  Designation+Qualification.level
+
+fit=randomForest(x,mtry=10,ntree=459,nodesize=13,data=train)
+train$scores=predict(fit,type="prob")
+t=table(train$Status)
+
+#finding the optimal cut value
+#-----------------------------
+cutpoints=seq(0,1,0.01)
+length(cutpoints)
+
+sensitivity=seq(1,101,1)
+specificity=seq(1,101,1)
+train$Status1=ifelse(train$Status=="Alumni",1,0)
+
+cutpoint_perf=cbind(cutpoints,sensitivity,specificity)
+
+for(i in 1:101)
+{
+  predicted=ifelse(train$scores[,2]<cutpoint_perf[i,1],0,1)
+  
+  summed=predicted+train$Status1
+  pred_1=ifelse(summed==2,1,0)
+  correct_1=sum(pred_1)
+  pred_0=ifelse(summed==0,1,0)
+  correct_0=sum(pred_0)
+  cutpoint_perf[i,2]=correct_1/t[2]
+  cutpoint_perf[i,3]=correct_0/t[1]
+}
+
+cutvalue_table=data.frame(cutpoint_perf)
+cutvalue_table$diff=abs(cutvalue_table$sensitivity-cutvalue_table$specificity)
+min(cutvalue_table$diff)
+optcv=subset(cutvalue_table$cutpoints,cutvalue_table$diff%in%min(cutvalue_table$diff))
+
+#-------------------------------
+
+
+pred_attrition=function(a,b,c,d,e,f,g,h,i,j,k,l,m,x){
+	
+	scores=predict(fit,data.frame(a,b,c,d,e,f,g,h,i,j,k,l,m),type="prob",newdata = x)
+
+	
+	score=scores[,2]
+
+	
+	return(score)
+	
+	
+}
+
+
+shinyServer(
+function(input,output){
+  
+  
+  output$contents=renderTable({
+  
+  
+  test= read.csv(input$file1$datapath,
+                 header = input$header)
+
+  
+  
+  test$age.joining=as.numeric(round((strptime(test$DOJ, format = "%d-%b-%y")-strptime(test$DOB, format = "%d-%b-%y"))/365))
+  today=format(Sys.Date(),"%d-%b-%y")
+  test$Epiexp=as.numeric(round((strptime(today,format = "%d-%b-%y")-strptime(test$DOJ, format = "%d-%b-%y"))/365,1))
+  
+  test$increment.1=((test$Salary/test$JoinCTC)^(1/test$Epiexp))-1
+  test$increment.1[which(!is.finite(test$increment.1))] = 0
+  test$weekly.grp=factor(ifelse(test$weeklyawards==0,"0",ifelse(test$weeklyawards>10,"1","2")),levels = levels(train$weekly.grp))
+  test$Incentive.grp=factor(ifelse(test$Incentive==0,"0",
+                            ifelse(test$Incentive>10,"1",
+                                   ifelse(test$Incentive>5,"2","3"))),levels = levels(train$Incentive.grp))
+  
+ 
+  test$Gender=factor(ifelse(test$Gender=="Male",1,0),levels = levels(train$Gender))
+  test$Marital.Status=factor(ifelse(test$Marital.Status=="Single",1,0),levels = levels(train$Marital.Status))
+  test$Exp.category=factor(ifelse(test$Exp.category=="Fresher",1,0),levels = levels(train$Exp.category))
+  test$Certified=factor(ifelse(test$Certified=="Yes",1,0),levels = levels(train$Certified))
+  test$Designation=factor(ifelse(test$Designation=="Trainee - CRP",0,
+                                    ifelse(test$Designation=="Medical Coder - CRP",1,2)),levels = levels(train$Designation))
+  test$Qualification.level=factor(ifelse(test$Qualification.level=="Diploma",0,
+                                            ifelse(test$Qualification.level=="Graduate",1,2)),levels = levels(train$Qualification.level))
+  test$Qualification.type=factor(ifelse(test$Qualification.type=="Clinical",0,
+                                           ifelse(test$Qualification.type=="Life Science",1,
+                                                  ifelse(test$Qualification.type=="Non Lifescience",2,
+                                                         ifelse(test$Qualification.type=="Professional",3,4)))),levels = levels(train$Qualification.type))
+  
+  
+  test$Probability=pred_attrition(age.joining,Epiexp,Prevexp,Gender,Marital.Status,
+                                  Exp.category,Qualification.type,Designation,Incentive.grp,
+                                  weekly.grp,Certified,increment.1,Qualification.level,test)
+  test$Probabilityr=paste(round(test$Probability,2)*100,"%",sep="")
+  test$Prediction=ifelse(test$Probability<optcv,"Active","Attrite")
+ 
+  out=as.data.frame(cbind(as.character(test$Emp.ID),test$Prediction,test$Probabilityr))
+  names(out)=c("Emp ID","Prediction","Probability")
+  
+  out
+  
+  
+  
+})
+
+  
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste('prediction', 'csv', sep = '.')
+    },
+    content = function(file) {
+      write.csv(out,file)
+    }
+    
+  )
+  
+  
+  
+}
+)
+
+
