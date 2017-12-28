@@ -1,0 +1,49 @@
+
+
+data=read.csv("C:\\Users\\INTN008\\Desktop\\attrition.v1.csv",header=T,sep=",")
+
+data$LDB=factor(data$LDB)
+data$sup=factor(data$sup)
+
+
+
+#Splitting the data into train and test
+set.seed(25)
+smp_size=floor(0.70*nrow(data))
+train_ind=sample(seq_len(nrow(data)),size=smp_size)
+
+train=data[train_ind,]
+test=data[-train_ind,]
+
+
+
+	x=Status~age.joining+Epiexp+Salary+Gender+Marital.Status+
+ 	  Exp.category+LDB+Designation+Qualification.type+sup
+
+	fit=rpart(x,data=train,minsplit=32,minbucket=5,cp=0.001)
+	
+
+pred_attrition=function(a,b,c,d,e,f,g,h,i,j){
+	
+	
+
+	scores=predict(fit,data.frame(age.joining=a,Epiexp=b,Salary=c,Gender=d,Marital.Status=e,
+	               Exp.category=f,LDB=g,Designation=h,Qualification.type=i,sup=j),type="prob")
+	
+	class=ifelse(scores[,2]<0.24,"Active","Attrite")
+	
+	
+	return(class)
+	
+}
+
+
+shinyServer(
+function(input,output){
+output$prob=renderText({pred_attrition(input$a,input$b,input$c,input$d,
+input$e,input$f,input$g,input$h,input$i,input$j)})
+
+
+}
+)
+
