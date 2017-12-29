@@ -1,9 +1,7 @@
-
 library(randomForest)
 set.seed(25)
-train=read.csv("C:\\Users\\INTN008\\Desktop\\attrition new\\train.csv",header=T,sep=",")
-str(train)
-str(test)
+train=read.csv("train.csv",header=T,sep=",")
+
 train$increment.1=((train$Salary/train$JoinCTC)^(1/train$Epiexp))-1
 train$increment.1[which(!is.finite(train$increment.1))] = 0
 train$weekly.grp=as.factor(ifelse(train$weeklyawards==0,"0",ifelse(train$weeklyawards>10,"1","2")))
@@ -83,14 +81,16 @@ pred_attrition=function(a,b,c,d,e,f,g,h,i,j,k,l,m,x){
 shinyServer(
 function(input,output){
   
-  
-  output$contents=renderTable({
-  
-  
-  test= read.csv(input$file1$datapath,
-                 header = input$header)
-
-  
+  #taking the input file and predicting
+  out1=reactive({
+    
+    t <- input$file1
+    
+    if (is.null(t))
+      return(NULL)
+    
+    test=read.csv(t$datapath, header = input$header)
+   
   
   test$age.joining=as.numeric(round((strptime(test$DOJ, format = "%d-%b-%y")-strptime(test$DOB, format = "%d-%b-%y"))/365))
   today=format(Sys.Date(),"%d-%b-%y")
@@ -127,26 +127,26 @@ function(input,output){
   out=as.data.frame(cbind(as.character(test$Emp.ID),test$Prediction,test$Probabilityr))
   names(out)=c("Emp ID","Prediction","Probability")
   
-  out
-  
-  
+  return(out)
   
 })
-
+  
+  output$contents=renderTable({
+    out1()
+  })
+  
   
   output$downloadData <- downloadHandler(
     filename = function() {
       paste('prediction', 'csv', sep = '.')
     },
     content = function(file) {
-      write.csv(out,file)
+      write.csv(out1(),file)
     }
     
   )
-  
+
   
   
 }
 )
-
-
