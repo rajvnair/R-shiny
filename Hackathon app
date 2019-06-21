@@ -1,0 +1,183 @@
+#ttt=gs_auth()
+#saveRDS(ttt,"C:\\Users\\vera8001\\Desktop\\Hackathon app\\Hackathon\\ttt.rds")
+#install.packages("mzR")
+library(googlesheets)
+suppressMessages(library(DT))
+suppressMessages(library(dplyr)) 
+library(shinycssloaders)
+library(shinythemes)
+library(shiny)
+library(shinyWidgets)
+#to read from google sheets
+library(googlesheets)
+#setwd("C:\\Users\\vera8001\\Desktop\\Hackathon app\\Hackathon\\")
+ui=shinyUI(fluidPage
+           
+           (
+             
+             
+             tags$head(
+               tags$style(
+                 HTML(".shiny-notification {
+                      height: 100px;
+                      width: 800px;
+                      position:fixed;
+                      top: calc(50% - 50px);;
+                      left: calc(50% - 400px);;
+                      }
+                      "
+                 )
+                 )
+               
+                 ),
+             theme = shinytheme("cosmo"),
+             
+             titlePanel(tags$title('Nielsen MMM Hackathon'),title=div(img(src="http://i1.sndcdn.com/avatars-000229646774-443nt3-original.jpg",height = 50, width = 50),"Nielsen MMM Hackathon")
+                        
+             ),
+             
+             
+             tabsetPanel(
+               id="tabs",
+               
+               
+               tabPanel("Check Your Score",
+                        sidebarPanel(selectInput("a",label=h4("Select your Team:"),list("Guest"="10","Team1"="1","Team2"="2","Team3"="3","Team4"="4","Team5"="5",
+                                                                                        "Team6"="6","Team7"="7","Team8"="8","Team9"="9")),
+                            numericInput("b",label=h4("Enter your 4 digit SecretID:"),0000,min=0,max=1000),
+                                       
+                            fileInput("file1",label=h4("Upload the Submission File"),
+                            accept=c("text/csv",
+                                  "text/comma-separated-values,text/plain",
+                                  ".csv")),
+                            
+               
+                            actionButton("Action", label=h4("Check your Score")),tags$hr()),
+                        
+                        mainPanel(
+                          
+                          h3(textOutput("accuracy1"))
+               )
+               ),
+               
+               
+               tabPanel("Hackathon Scoreboard",
+                        actionButton("Action2",label=h4("Check Scoreboard"),icon("refresh")),tags$hr()
+                        ,dataTableOutput("scoreboard"))
+               
+               
+             )
+                 ))
+
+#gs_auth(new_user = FALSE, gs_auth(token = "ttt.rds"))
+
+test_private=read.csv("Test_private.csv",header=T,sep=",")
+
+test_public=read.csv("Test_public.csv",header=T,sep=",")
+
+#including validations to prevent errors
+data_error <- function(input) {
+  if (is.null(input)) {
+    "Please select a dataset"
+  } else {
+    NULL
+  }
+}
+validation <- function(inputd) {
+  if (is.data.frame(inputd)&&nrow(inputd)==0) {
+    "Incorrect Secret ID"
+  } else {
+    NULL
+  }
+}
+check_missing <- function(input) {
+  if (is.na(sum(input))) {
+    "Check your file for missing Values/number format"
+  } else {
+    NULL
+  }
+}
+
+check_file <- function(input) {
+  if (ncol(input) != 2) {
+    "Incorrect file- Submission file should only contain ID and Submission columns"
+  } else {
+    NULL
+  }
+}
+
+#for_gs=gs_title("Hackathon Scoreboard")
+for_gs=gs_key("input")
+#sheet=gs_read(for_gs)
+
+server <- function(input,output,session) {
+
+  result=reactive({
+    validate(data_error(input$file1))
+    
+    file=input$file1
+    read.table(file=file$datapath,sep=',',header=T)
+  }
+  )
+#event reactive takes input from UI and returns output.  
+  df=eventReactive(input$Action, {
+#using the data validations   
+   validate(check_file(result()))
+    validate(data_error(input$file1))
+    validate(check_missing(result()$Submission))
+    dataprivate=merge(test_private,result(),by.x="ID",by.y="ID",all.x=TRUE)
+    dataprivate$private_score=ifelse(dataprivate$Churn==dataprivate$Submission,1,0)
+    
+    datapublic=merge(test_public,result(),by.x="ID",by.y="ID",all.x=TRUE)
+    datapublic$public_score=ifelse(datapublic$Churn==datapublic$Submission,1,0)
+    
+    team=input$a
+    code=input$b
+    #reading the google sheets
+    sheet=gs_read(for_gs)
+    prev_score=sheet %>% select(`Team score`,`Public Score`) %>% filter(sheet$`Secret ID`==code,sheet$`Team ID`==team)
+    validate(validation(prev_score))
+    progress <- shiny::Progress$new()
+    progress$set(message = "Calculating...")
+    Prev_accuracy=prev_score[1,]
+    
+    Prev_accuracy=as_tibble(Prev_accuracy) %>%
+      slice(1) %>% 
+      unlist(., use.names=FALSE)
+    accuracy=c(round(sum(dataprivate$private_score/528),5),round(sum(datapublic$public_score/1761),5))
+    
+    x1=ifelse(accuracy[1]>Prev_accuracy[1],accuracy[1],Prev_accuracy[1])
+    x2=ifelse(accuracy[1]>Prev_accuracy[1],accuracy[2],Prev_accuracy[2])
+    y=which(sheet$`Team ID`==team)
+    anchorcode=paste("G",y+1,sep="")
+    x=c(x1,x2)
+    #updating the google sheet
+    gs_edit_cells(for_gs,ws="Sheet1",anchor = anchorcode,input=x,byrow=TRUE)
+    on.exit(progress$close())
+    print(paste("Your Prediction accuracy is:",accuracy[1]))
+  })
+  output$accuracy1=renderText({
+    df()
+  })
+ 
+  df2=eventReactive(input$Action2,{
+      d=gs_read(for_gs,range="B1:G10")
+      d=d[order(d$`Rank`),]
+      d
+      
+  })
+  output$scoreboard=renderDataTable(df2())
+  
+  
+  
+  
+  
+  
+
+  }   
+   
+#}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
